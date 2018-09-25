@@ -994,4 +994,5 @@ struct flash_driver max32xxx_flash = {
 	.erase_check = default_flash_blank_check,
 	.protect_check = max32xxx_protect_check,
 	.info = get_info,
+	.free_driver_priv = default_flash_free_driver_priv,
 };
