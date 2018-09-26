@@ -25,43 +25,63 @@
 #include <target/armv7m.h>
 
 /* Register Addresses */
-#define FLSH_ADDR                  0x000
-#define FLSH_CLKDIV                0x004
-#define FLSH_CN                    0x008
-#define PR1E_ADDR                  0x00C
-#define PR2S_ADDR                  0x010
-#define PR2E_ADDR                  0x014
-#define PR3S_ADDR                  0x018
-#define PR3E_ADDR                  0x01C
-#define FLSH_MD                    0x020
-#define FLSH_INT                   0x024
-#define FLSH_DATA0                 0x030
-#define FLSH_DATA1                 0x034
-#define FLSH_DATA2                 0x038
-#define FLSH_DATA3                 0x03C
-#define FLSH_BL_CTRL               0x170
-#define FLSH_PROT                  0x300
+#define FLC_ADDR                  0x000
+#define FLC_CLKDIV                0x004
+#define FLC_CN                    0x008
+#define FLC_PR1E_ADDR             0x00C
+#define FLC_PR2S_ADDR             0x010
+#define FLC_PR2E_ADDR             0x014
+#define FLC_PR3S_ADDR             0x018
+#define FLC_PR3E_ADDR             0x01C
+#define FLC_MD                    0x020
+#define FLC_INT                   0x024
+#define FLC_DATA0                 0x030
+#define FLC_DATA1                 0x034
+#define FLC_DATA2                 0x038
+#define FLC_DATA3                 0x03C
+#define FLC_BL_CTRL               0x170
+#define FLC_PROT                  0x300
 
-#define ARM_PID_REG                0xE00FFFE0
-#define MAX326XX_ID_REG            0x40000838
+#define ARM_PID_REG               0xE00FFFE0
+#define MAX326XX_ID_REG           0x40000838
 
 /* Register settings */
-#define FLSH_INT_AF                0x00000002
+#define FLC_INT_AF                0x00000002
 
-#define FLSH_CN_UNLOCK_MASK        0xF0000000
-#define FLSH_CN_UNLOCK_VALUE       0x20000000
+#define FLC_CN_UNLOCK_MASK        0xF0000000
+#define FLC_CN_UNLOCK_VALUE       0x20000000
 
-#define FLSH_CN_PEND               0x01000000
+#define FLC_CN_PEND               0x01000000
+#define FLC_CN_ERASE_CODE_MASK    0x0000FF00
+#define FLC_CN_ERASE_CODE_PGE     0x00005500
+#define FLC_CN_ERASE_CODE_ME      0x0000AA00
+#define FLC_CN_PGE                0x00000004
+#define FLC_CN_ME                 0x00000002
+#define FLC_CN_WR                 0x00000001
+#define FLC_CN_PGE				0x00000004
+#define FLC_CN_ME				0x00000002
+#define FLC_CN_WR				0x00000001
 
-#define FLSH_CN_ERASE_CODE_MASK    0x0000FF00
-#define FLSH_CN_ERASE_CODE_PGE     0x00005500
-#define FLSH_CN_ERASE_CODE_ME      0x0000AA00
+#define FLC_BL_CTRL_23           0x00020000
+#define FLC_BL_CTRL_IFREN        0x00000001
 
-#define FLSH_CN_PGE                0x00000004
-#define FLSH_CN_ME                 0x00000002
-#define FLSH_CN_WR                 0x00000001
-#define FLASH_BL_CTRL_23           0x00020000
-#define FLASH_BL_CTRL_IFREN        0x00000001
+#define MASK_FLASH_BUSY         (0x048800E0 & ~0x04000000)
+#define MASK_DISABLE_INTS       0xFFFFFCFC
+#define MASK_FLASH_UNLOCKED     (0xF588FFEF & ~0x04000000)
+#define MASK_FLASH_LOCK         (0xF588FFEF & ~0x04000000)
+#define MASK_FLASH_ERASE        (0xF588FFEF & ~0x04000000)
+#define MASK_FLASH_ERASED       (0xF48800EB & ~0x04000000)
+#define MASK_ACCESS_VIOLATIONS  0xFFFFFCFC
+#define MASK_FLASH_WRITE        (0xF588FFEF & ~0x04000000)
+#define MASK_WRITE_ALIGNED      (0xF588FFEF & ~0x04000000)
+#define MASK_WRITE_COMPLETE     (0xF488FFEE & ~0x04000000)
+#define MASK_WRITE_BURST        (0xF588FFEF & ~0x04000000)
+#define MASK_BURST_COMPLETE     (0xF488FFEE & ~0x04000000)
+#define MASK_WRITE_REMAINING    (0xF588FFEF & ~0x04000000)
+#define MASK_REMAINING_COMPLETE (0xF488FFEE & ~0x04000000)
+#define MASK_MASS_ERASE         (0xF588FFEF & ~0x04000000)
+#define MASK_ERASE_COMPLETE     (0xF48800ED & ~0x04000000)
+
 
 #define ARM_PID_DEFAULT_CM3        0xB4C3
 #define ARM_PID_DEFAULT_CM4        0xB4C4
@@ -127,6 +147,15 @@ static int get_info(struct flash_bank *bank, char *buf, int buf_size)
 	return ERROR_OK;
 }
 
+static int max32xxx_flash_busy(uint32_t flash_cn)
+{
+	if(flash_cn & (FLC_CN_PGE | FLC_CN_ME | FLC_CN_WR)) {
+		return ERROR_FLASH_BUSY;
+	}
+
+	return ERROR_OK;
+}
+
 /***************************************************************************
 *	flash operations
 ***************************************************************************/
@@ -135,41 +164,41 @@ static int max32xxx_flash_op_pre(struct flash_bank *bank)
 {
 	struct target *target = bank->target;
 	struct max32xxx_flash_bank *info = bank->driver_priv;
-	uint32_t flsh_cn;
+	uint32_t flash_cn;
 	uint32_t bootloader;
 
 	/* Check if the flash controller is busy */
-	target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
-	if (flsh_cn & (FLSH_CN_PEND | FLSH_CN_ERASE_CODE_MASK | FLSH_CN_PGE |
-		FLSH_CN_ME | FLSH_CN_WR))
+	target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
+	if (max32xxx_flash_busy(flash_cn)){
 		return ERROR_FLASH_BUSY;
+	}
 
 	/* Refresh flash controller timing */
-	target_write_u32(target, info->flc_base + FLSH_CLKDIV, info->clkdiv_value);
+	target_write_u32(target, info->flc_base + FLC_CLKDIV, info->clkdiv_value);
 
 	/* Clear and disable flash programming interrupts */
-	target_read_u32(target, info->flc_base + FLSH_INT, &info->int_state);
-	target_write_u32(target, info->flc_base + FLSH_INT, 0x00000000);
+	target_read_u32(target, info->flc_base + FLC_INT, &info->int_state);
+	target_write_u32(target, info->flc_base + FLC_INT, 0x00000000);
 
 	/* Clear the lower bit in the bootloader configuration register in case flash page 0 has been replaced */
-	if (target_read_u32(target, info->flc_base + FLSH_BL_CTRL, &bootloader) != ERROR_OK) {
-		LOG_ERROR("Read failure on FLSH_BL_CTRL");
+	if (target_read_u32(target, info->flc_base + FLC_BL_CTRL, &bootloader) != ERROR_OK) {
+		LOG_ERROR("Read failure on FLC_BL_CTRL");
 		return ERROR_FAIL;
 	}
-	if (bootloader & FLASH_BL_CTRL_23) {
-		LOG_WARNING("FLSH_BL_CTRL indicates BL mode 2 or mode 3.");
-		if (bootloader & FLASH_BL_CTRL_IFREN) {
+	if (bootloader & FLC_BL_CTRL_23) {
+		LOG_WARNING("FLC_BL_CTRL indicates BL mode 2 or mode 3.");
+		if (bootloader & FLC_BL_CTRL_IFREN) {
 			LOG_WARNING("Flash page 0 swapped out, attempting to swap back in for programming");
-			bootloader &= ~(FLASH_BL_CTRL_IFREN);
-			if (target_write_u32(target, info->flc_base + FLSH_BL_CTRL, bootloader) != ERROR_OK) {
-				LOG_ERROR("Write failure on FLSH_BL_CTRL");
+			bootloader &= ~(FLC_BL_CTRL_IFREN);
+			if (target_write_u32(target, info->flc_base + FLC_BL_CTRL, bootloader) != ERROR_OK) {
+				LOG_ERROR("Write failure on FLC_BL_CTRL");
 				return ERROR_FAIL;
 			}
-			if (target_read_u32(target, info->flc_base + FLSH_BL_CTRL, &bootloader) != ERROR_OK) {
-				LOG_ERROR("Read failure on FLSH_BL_CTRL");
+			if (target_read_u32(target, info->flc_base + FLC_BL_CTRL, &bootloader) != ERROR_OK) {
+				LOG_ERROR("Read failure on FLC_BL_CTRL");
 				return ERROR_FAIL;
 			}
-			if (bootloader & FLASH_BL_CTRL_IFREN) {
+			if (bootloader & FLC_BL_CTRL_IFREN) {
 				/* Bummer */
 				LOG_ERROR("Unable to swap flash page 0 back in. Writes to page 0 will fail.");
 			}
@@ -177,13 +206,13 @@ static int max32xxx_flash_op_pre(struct flash_bank *bank)
 	}
 
 	/* Unlock flash */
-	flsh_cn &= ~FLSH_CN_UNLOCK_MASK;
-	flsh_cn |= FLSH_CN_UNLOCK_VALUE;
-	target_write_u32(target, info->flc_base + FLSH_CN, flsh_cn);
+	flash_cn &= ~FLC_CN_UNLOCK_MASK;
+	flash_cn |= FLC_CN_UNLOCK_VALUE;
+	target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 	/* Confirm flash is unlocked */
-	target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
-	if ((flsh_cn & FLSH_CN_UNLOCK_VALUE) != FLSH_CN_UNLOCK_VALUE)
+	target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
+	if ((flash_cn & FLC_CN_UNLOCK_VALUE) != FLC_CN_UNLOCK_VALUE)
 		return ERROR_FAIL;
 
 	return ERROR_OK;
@@ -193,15 +222,15 @@ static int max32xxx_flash_op_post(struct flash_bank *bank)
 {
 	struct target *target = bank->target;
 	struct max32xxx_flash_bank *info = bank->driver_priv;
-	uint32_t flsh_cn;
+	uint32_t flash_cn;
 
 	/* Restore flash programming interrupts */
-	target_write_u32(target, info->flc_base + FLSH_INT, info->int_state);
+	target_write_u32(target, info->flc_base + FLC_INT, info->int_state);
 
 	/* Lock flash */
-	target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
-	flsh_cn &= ~FLSH_CN_UNLOCK_MASK;
-	target_write_u32(target, info->flc_base + FLSH_CN, flsh_cn);
+	target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
+	flash_cn &= ~FLC_CN_UNLOCK_MASK;
+	target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 	return ERROR_OK;
 }
 
@@ -225,7 +254,7 @@ static int max32xxx_protect_check(struct flash_bank *bank)
 	/* Check the protection */
 	for (i = 0; i < bank->num_sectors; i++) {
 		if (i%32 == 0)
-			target_read_u32(target, info->flc_base + FLSH_PROT + ((i/32)*4), &temp_reg);
+			target_read_u32(target, info->flc_base + FLC_PROT + ((i/32)*4), &temp_reg);
 
 		if (temp_reg & (0x1 << i%32))
 			bank->sectors[i].is_protected = 1;
@@ -238,7 +267,7 @@ static int max32xxx_protect_check(struct flash_bank *bank)
 static int max32xxx_erase(struct flash_bank *bank, int first, int last)
 {
 	int banknr;
-	uint32_t flsh_cn, flsh_int;
+	uint32_t flash_cn, flsh_int;
 	struct max32xxx_flash_bank *info = bank->driver_priv;
 	struct target *target = bank->target;
 	int retval;
@@ -275,22 +304,22 @@ static int max32xxx_erase(struct flash_bank *bank, int first, int last)
 			erased = 1;
 
 		/* Address is first word in page */
-		target_write_u32(target, info->flc_base + FLSH_ADDR, banknr * info->sector_size);
+		target_write_u32(target, info->flc_base + FLC_ADDR, banknr * info->sector_size);
 
 		/* Write page erase code */
-		target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
-		flsh_cn |= FLSH_CN_ERASE_CODE_PGE;
-		target_write_u32(target, info->flc_base + FLSH_CN, flsh_cn);
+		target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
+		flash_cn |= FLC_CN_ERASE_CODE_PGE;
+		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 		/* Issue page erase command */
-		flsh_cn |= 0x4;
-		target_write_u32(target, info->flc_base + FLSH_CN, flsh_cn);
+		flash_cn |= 0x4;
+		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 		/* Wait until erase complete */
 		retry = 1000;
 		do {
-			target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
-		} while ((--retry > 0) && (flsh_cn & FLSH_CN_PEND));
+			target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
+		} while ((--retry > 0) && max32xxx_flash_busy(flash_cn));
 
 		if (retry <= 0) {
 			LOG_ERROR("Timed out waiting for flash page erase @ 0x%08x",
@@ -299,10 +328,10 @@ static int max32xxx_erase(struct flash_bank *bank, int first, int last)
 		}
 
 		/* Check access violations */
-		target_read_u32(target, info->flc_base + FLSH_INT, &flsh_int);
-		if (flsh_int & FLSH_INT_AF) {
+		target_read_u32(target, info->flc_base + FLC_INT, &flsh_int);
+		if (flsh_int & FLC_INT_AF) {
 			LOG_ERROR("Error erasing flash page %i", banknr);
-			target_write_u32(target, info->flc_base + FLSH_INT, 0);
+			target_write_u32(target, info->flc_base + FLC_INT, 0);
 			max32xxx_flash_op_post(bank);
 			return ERROR_FLASH_OPERATION_FAILED;
 		}
@@ -347,15 +376,15 @@ static int max32xxx_protect(struct flash_bank *bank, int set, int first, int las
 	for (page = first; page <= last; page++) {
 		if (set) {
 			/* Set the write/erase bit for this page */
-			target_read_u32(target, info->flc_base + FLSH_PROT + (page/32), &temp_reg);
+			target_read_u32(target, info->flc_base + FLC_PROT + (page/32), &temp_reg);
 			temp_reg |= (0x1 << page%32);
-			target_write_u32(target, info->flc_base + FLSH_PROT + (page/32), temp_reg);
+			target_write_u32(target, info->flc_base + FLC_PROT + (page/32), temp_reg);
 			bank->sectors[page].is_protected = 1;
 		} else {
 			/* Clear the write/erase bit for this page */
-			target_read_u32(target, info->flc_base + FLSH_PROT + (page/32), &temp_reg);
+			target_read_u32(target, info->flc_base + FLC_PROT + (page/32), &temp_reg);
 			temp_reg &= ~(0x1 << page%32);
-			target_write_u32(target, info->flc_base + FLSH_PROT + (page/32), temp_reg);
+			target_write_u32(target, info->flc_base + FLC_PROT + (page/32), temp_reg);
 			bank->sectors[page].is_protected = 0;
 		}
 	}
@@ -372,7 +401,7 @@ static int max32xxx_write_block(struct flash_bank *bank, const uint8_t *buffer,
 	struct working_area *source;
 	struct working_area *write_algorithm;
 	uint32_t address = bank->base + offset;
-	struct reg_param reg_params[5];
+	struct reg_param reg_params[6];
 	struct armv7m_algorithm armv7m_info;
 	int retval = ERROR_OK;
 	/* power of two, and multiple of word size */
@@ -418,14 +447,44 @@ static int max32xxx_write_block(struct flash_bank *bank, const uint8_t *buffer,
 	init_reg_param(&reg_params[2], "r2", 32, PARAM_OUT);
 	init_reg_param(&reg_params[3], "r3", 32, PARAM_OUT);
 	init_reg_param(&reg_params[4], "r4", 32, PARAM_OUT);
+	init_reg_param(&reg_params[5], "r5", 32, PARAM_OUT);
 
+
+#if 0
+
+	// TODO: Not working w/ 128-bit writes
+	// Algorithm times out
+
+
+	buf_set_u32(reg_params[0].value, 0, 32, source->address);
+	buf_set_u32(reg_params[1].value, 0, 32, source->address + source->size);
+	buf_set_u32(reg_params[2].value, 0, 32, address);
+	buf_set_u32(reg_params[3].value, 0, 32, wcount/4);
+	buf_set_u32(reg_params[4].value, 0, 32, info->flc_base);
+
+
+	buf_set_u32(reg_params[5].value, 0, 32, 1);
+
+	LOG_INFO("r0 = 0x%x, r1 = 0x%x, r2 = 0x%x, r3 = 0x%x, r4 = 0x%x, r5 = 0x%x",
+			(unsigned)source->address, (unsigned)source->address + source->size, address,
+			wcount/4, info->flc_base, 1);
+
+#else
 	buf_set_u32(reg_params[0].value, 0, 32, source->address);
 	buf_set_u32(reg_params[1].value, 0, 32, source->address + source->size);
 	buf_set_u32(reg_params[2].value, 0, 32, address);
 	buf_set_u32(reg_params[3].value, 0, 32, wcount);
 	buf_set_u32(reg_params[4].value, 0, 32, info->flc_base);
+
+	// TODO: Not working w/ 128-bit writes
+	buf_set_u32(reg_params[5].value, 0, 32, 0);
+
+	LOG_INFO("r0 = 0x%x, r1 = 0x%x, r2 = 0x%x, r3 = 0x%x, r4 = 0x%x, r5 = 0x%x",
+			(unsigned)source->address, (unsigned)source->address + source->size, address,
+			wcount, info->flc_base, 0);
+#endif
 	retval = target_run_flash_async_algorithm(target, buffer, wcount, 4, 0, NULL,
-		5, reg_params, source->address, source->size, write_algorithm->address, 0, &armv7m_info);
+		6, reg_params, source->address, source->size, write_algorithm->address, 0, &armv7m_info);
 
 	if (retval == ERROR_FLASH_OPERATION_FAILED)
 		LOG_ERROR("error %d executing max32xxx flash write algorithm", retval);
@@ -437,6 +496,7 @@ static int max32xxx_write_block(struct flash_bank *bank, const uint8_t *buffer,
 	destroy_reg_param(&reg_params[2]);
 	destroy_reg_param(&reg_params[3]);
 	destroy_reg_param(&reg_params[4]);
+	destroy_reg_param(&reg_params[5]);
 	return retval;
 }
 
@@ -445,7 +505,7 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 {
 	struct max32xxx_flash_bank *info = bank->driver_priv;
 	struct target *target = bank->target;
-	uint32_t flsh_cn, flsh_int;
+	uint32_t flash_cn, flsh_int;
 	uint32_t address = offset;
 	uint32_t remaining = count;
 	uint32_t words_remaining;
@@ -479,10 +539,10 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 
 	if (remaining >= 4) {
 		/* write in 32-bit units */
-		target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
-		flsh_cn &= 0xF7FFFFFF;
-		flsh_cn |= 0x00000010;
-		target_write_u32(target, info->flc_base + FLSH_CN, flsh_cn);
+		target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
+		flash_cn &= 0xF7FFFFFF;
+		flash_cn |= 0x00000010;
+		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 		/* try using a block write */
 		words_remaining = remaining / 4;
@@ -505,22 +565,22 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 
 	if ((remaining >= 4) && ((address & 0x1F) != 0)) {
 		/* write in 32-bit units until we are 128-bit aligned */
-		target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
-		flsh_cn &= 0xF7FFFFFF;
-		flsh_cn |= 0x00000010;
-		target_write_u32(target, info->flc_base + FLSH_CN, flsh_cn);
+		target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
+		flash_cn &= 0xF7FFFFFF;
+		flash_cn |= 0x00000010;
+		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 		while ((remaining >= 4) && ((address & 0x1F) != 0)) {
-			target_write_u32(target, info->flc_base + FLSH_ADDR, address);
-			target_write_buffer(target, info->flc_base + FLSH_DATA0, 4, buffer);
-			flsh_cn |= 0x00000001;
-			target_write_u32(target, info->flc_base + FLSH_CN, flsh_cn);
+			target_write_u32(target, info->flc_base + FLC_ADDR, address);
+			target_write_buffer(target, info->flc_base + FLC_DATA0, 4, buffer);
+			flash_cn |= 0x00000001;
+			target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 			/* Wait until flash operation is complete */
 			retry = 10;
 
 			do {
-				target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
-			} while ((--retry > 0) && (flsh_cn & FLSH_CN_PEND));
+				target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
+			} while ((--retry > 0) && max32xxx_flash_busy(flash_cn));
 
 			if (retry <= 0) {
 				LOG_ERROR("Timed out waiting for flash write @ 0x%08x", address);
@@ -535,26 +595,26 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 
 	if ((info->burst_size_bits == 128) && (remaining >= 16)) {
 		/* write in 128-bit bursts while we can */
-		target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
+		target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
 
-		flsh_cn &= 0xFFFFFFEF;
-		flsh_cn |= 0x08000000;
-		target_write_u32(target, info->flc_base + FLSH_CN, flsh_cn);
-		target_write_u32(target, info->flc_base + FLSH_ADDR, address);
+		flash_cn &= 0xFFFFFFEF;
+		flash_cn |= 0x08000000;
+		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
+		target_write_u32(target, info->flc_base + FLC_ADDR, address);
 
 		while (remaining >= 16) {
 			if ((address & 0xFFF) == 0)
 				LOG_DEBUG("Writing @ 0x%08x", address);
 
-			target_write_buffer(target, info->flc_base + FLSH_DATA0, 16, buffer);
-			flsh_cn |= 0x00000001;
-			target_write_u32(target, info->flc_base + FLSH_CN, flsh_cn);
+			target_write_buffer(target, info->flc_base + FLC_DATA0, 16, buffer);
+			flash_cn |= 0x00000001;
+			target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 			/* Wait until flash operation is complete */
 			retry = 10;
 
 			do {
-				target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
-			} while ((--retry > 0) && (flsh_cn & FLSH_CN_PEND));
+				target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
+			} while ((--retry > 0) && max32xxx_flash_busy(flash_cn));
 
 			if (retry <= 0) {
 				LOG_ERROR("Timed out waiting for flash write @ 0x%08x", address);
@@ -570,22 +630,22 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 	if (remaining >= 4) {
 
 		/* write in 32-bit units while we can */
-		target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
-		flsh_cn &= 0xF7FFFFFF;
-		flsh_cn |= 0x00000010;
-		target_write_u32(target, info->flc_base + FLSH_CN, flsh_cn);
+		target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
+		flash_cn &= 0xF7FFFFFF;
+		flash_cn |= 0x00000010;
+		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 		while (remaining >= 4) {
-			target_write_u32(target, info->flc_base + FLSH_ADDR, address);
-			target_write_buffer(target, info->flc_base + FLSH_DATA0, 4, buffer);
-			flsh_cn |= 0x00000001;
-			target_write_u32(target, info->flc_base + FLSH_CN, flsh_cn);
+			target_write_u32(target, info->flc_base + FLC_ADDR, address);
+			target_write_buffer(target, info->flc_base + FLC_DATA0, 4, buffer);
+			flash_cn |= 0x00000001;
+			target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 			/* Wait until flash operation is complete */
 			retry = 10;
 
 			do {
-				target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
-			} while ((--retry > 0) && (flsh_cn & FLSH_CN_PEND));
+				target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
+			} while ((--retry > 0) && max32xxx_flash_busy(flash_cn));
 
 			if (retry <= 0) {
 				LOG_ERROR("Timed out waiting for flash write @ 0x%08x", address);
@@ -600,10 +660,10 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 
 	if (remaining > 0) {
 		/* write remaining bytes in a 32-bit unit */
-		target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
-		flsh_cn &= 0xF7FFFFFF;
-		flsh_cn |= 0x00000010;
-		target_write_u32(target, info->flc_base + FLSH_CN, flsh_cn);
+		target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
+		flash_cn &= 0xF7FFFFFF;
+		flash_cn |= 0x00000010;
+		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 		uint8_t last_word[4] = {0xff, 0xff, 0xff, 0xff};
 		int i = 0;
@@ -614,16 +674,16 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 			remaining--;
 		}
 
-		target_write_u32(target, info->flc_base + FLSH_ADDR, address);
-		target_write_buffer(target, info->flc_base + FLSH_DATA0, 4, last_word);
-		flsh_cn |= 0x00000001;
-		target_write_u32(target, info->flc_base + FLSH_CN, flsh_cn);
+		target_write_u32(target, info->flc_base + FLC_ADDR, address);
+		target_write_buffer(target, info->flc_base + FLC_DATA0, 4, last_word);
+		flash_cn |= 0x00000001;
+		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 		/* Wait until flash operation is complete */
 		retry = 10;
 
 		do {
-			target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
-		} while ((--retry > 0) && (flsh_cn & FLSH_CN_PEND));
+			target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
+		} while ((--retry > 0) && max32xxx_flash_busy(flash_cn));
 
 		if (retry <= 0) {
 			LOG_ERROR("Timed out waiting for flash write @ 0x%08x", address);
@@ -632,8 +692,8 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 	}
 
 	/* Check access violations */
-	target_read_u32(target, info->flc_base + FLSH_INT, &flsh_int);
-	if (flsh_int & FLSH_INT_AF) {
+	target_read_u32(target, info->flc_base + FLC_INT, &flsh_int);
+	if (flsh_int & FLC_INT_AF) {
 		LOG_ERROR("Flash Error writing 0x%x bytes at 0x%08x", count, offset);
 		max32xxx_flash_op_post(bank);
 		return ERROR_FLASH_OPERATION_FAILED;
@@ -698,7 +758,7 @@ static int max32xxx_mass_erase(struct flash_bank *bank)
 {
 	struct target *target = NULL;
 	struct max32xxx_flash_bank *info = NULL;
-	uint32_t flsh_cn, flsh_int;
+	uint32_t flash_cn, flsh_int;
 	int retval;
 	int retry;
 	info = bank->driver_priv;
@@ -732,19 +792,19 @@ static int max32xxx_mass_erase(struct flash_bank *bank)
 		return retval;
 
 	/* Write mass erase code */
-	target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
-	flsh_cn |= FLSH_CN_ERASE_CODE_ME;
-	target_write_u32(target, info->flc_base + FLSH_CN, flsh_cn);
+	target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
+	flash_cn |= FLC_CN_ERASE_CODE_ME;
+	target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 	/* Issue mass erase command */
-	flsh_cn |= 0x2;
-	target_write_u32(target, info->flc_base + FLSH_CN, flsh_cn);
+	flash_cn |= 0x2;
+	target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 	/* Wait until erase complete */
 	retry = 1000;
 	do {
-		target_read_u32(target, info->flc_base + FLSH_CN, &flsh_cn);
-	} while ((--retry > 0) && (flsh_cn & FLSH_CN_PEND));
+		target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
+	} while ((--retry > 0) && max32xxx_flash_busy(flash_cn));
 
 	if (retry <= 0) {
 		LOG_ERROR("Timed out waiting for flash mass erase");
@@ -752,10 +812,10 @@ static int max32xxx_mass_erase(struct flash_bank *bank)
 	}
 
 	/* Check access violations */
-	target_read_u32(target, info->flc_base + FLSH_INT, &flsh_int);
-	if (flsh_int & FLSH_INT_AF) {
+	target_read_u32(target, info->flc_base + FLC_INT, &flsh_int);
+	if (flsh_int & FLC_INT_AF) {
 		LOG_ERROR("Error mass erasing");
-		target_write_u32(target, info->flc_base + FLSH_INT, 0);
+		target_write_u32(target, info->flc_base + FLC_INT, 0);
 		return ERROR_FLASH_OPERATION_FAILED;
 	}
 
