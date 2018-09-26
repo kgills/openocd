@@ -39,6 +39,11 @@
 
 write:
 
+    /* write in 32-bit units by default */
+    ldr     r6, [r4, #0x08] /* FLSH_CN */
+    orr     r6, r6, #0x10   /* Width 32 bits */
+    str     r6, [r4, #0x08] /* FLSH_CN */
+
     tst     r5, #1          /* Check 32-bit write options */
     beq     wait_fifo
 

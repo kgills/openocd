@@ -24,68 +24,68 @@
 #include <target/algorithm.h>
 #include <target/armv7m.h>
 
-/* Register Addresses */
-#define FLC_ADDR                  0x000
-#define FLC_CLKDIV                0x004
-#define FLC_CN                    0x008
-#define FLC_PR1E_ADDR             0x00C
-#define FLC_PR2S_ADDR             0x010
-#define FLC_PR2E_ADDR             0x014
-#define FLC_PR3S_ADDR             0x018
-#define FLC_PR3E_ADDR             0x01C
-#define FLC_MD                    0x020
-#define FLC_INT                   0x024
-#define FLC_DATA0                 0x030
-#define FLC_DATA1                 0x034
-#define FLC_DATA2                 0x038
-#define FLC_DATA3                 0x03C
-#define FLC_BL_CTRL               0x170
-#define FLC_PROT                  0x300
+/* Register addresses */
+#define FLC_ADDR				0x000
+#define FLC_CLKDIV				0x004
+#define FLC_CN					0x008
+#define FLC_PR1E_ADDR			0x00C
+#define FLC_PR2S_ADDR			0x010
+#define FLC_PR2E_ADDR			0x014
+#define FLC_PR3S_ADDR			0x018
+#define FLC_PR3E_ADDR			0x01C
+#define FLC_MD					0x020
+#define FLC_INT					0x024
+#define FLC_DATA0				0x030
+#define FLC_DATA1				0x034
+#define FLC_DATA2				0x038
+#define FLC_DATA3				0x03C
+#define FLC_BL_CTRL				0x170
+#define FLC_PROT				0x300
 
-#define ARM_PID_REG               0xE00FFFE0
-#define MAX326XX_ID_REG           0x40000838
+#define ARM_PID_REG				0xE00FFFE0
+#define MAX326XX_ID_REG			0x40000838
 
 /* Register settings */
-#define FLC_INT_AF                0x00000002
+#define FLC_INT_AF				0x00000002
 
-#define FLC_CN_UNLOCK_MASK        0xF0000000
-#define FLC_CN_UNLOCK_VALUE       0x20000000
+#define FLC_CN_UNLOCK_MASK		0xF0000000
+#define FLC_CN_UNLOCK_VALUE		0x20000000
 
-#define FLC_CN_PEND               0x01000000
-#define FLC_CN_ERASE_CODE_MASK    0x0000FF00
-#define FLC_CN_ERASE_CODE_PGE     0x00005500
-#define FLC_CN_ERASE_CODE_ME      0x0000AA00
-#define FLC_CN_PGE                0x00000004
-#define FLC_CN_ME                 0x00000002
-#define FLC_CN_WR                 0x00000001
+#define FLC_CN_PEND				0x01000000
+#define FLC_CN_ERASE_CODE_MASK	0x0000FF00
+#define FLC_CN_ERASE_CODE_PGE	0x00005500
+#define FLC_CN_ERASE_CODE_ME	0x0000AA00
+#define FLC_CN_PGE				0x00000004
+#define FLC_CN_ME				0x00000002
+#define FLC_CN_WR				0x00000001
 #define FLC_CN_PGE				0x00000004
 #define FLC_CN_ME				0x00000002
 #define FLC_CN_WR				0x00000001
 
-#define FLC_BL_CTRL_23           0x00020000
-#define FLC_BL_CTRL_IFREN        0x00000001
+#define FLC_BL_CTRL_23			0x00020000
+#define FLC_BL_CTRL_IFREN		0x00000001
 
-#define MASK_FLASH_BUSY         (0x048800E0 & ~0x04000000)
-#define MASK_DISABLE_INTS       0xFFFFFCFC
-#define MASK_FLASH_UNLOCKED     (0xF588FFEF & ~0x04000000)
-#define MASK_FLASH_LOCK         (0xF588FFEF & ~0x04000000)
-#define MASK_FLASH_ERASE        (0xF588FFEF & ~0x04000000)
-#define MASK_FLASH_ERASED       (0xF48800EB & ~0x04000000)
-#define MASK_ACCESS_VIOLATIONS  0xFFFFFCFC
-#define MASK_FLASH_WRITE        (0xF588FFEF & ~0x04000000)
-#define MASK_WRITE_ALIGNED      (0xF588FFEF & ~0x04000000)
-#define MASK_WRITE_COMPLETE     (0xF488FFEE & ~0x04000000)
-#define MASK_WRITE_BURST        (0xF588FFEF & ~0x04000000)
-#define MASK_BURST_COMPLETE     (0xF488FFEE & ~0x04000000)
-#define MASK_WRITE_REMAINING    (0xF588FFEF & ~0x04000000)
-#define MASK_REMAINING_COMPLETE (0xF488FFEE & ~0x04000000)
-#define MASK_MASS_ERASE         (0xF588FFEF & ~0x04000000)
-#define MASK_ERASE_COMPLETE     (0xF48800ED & ~0x04000000)
+#define MASK_FLASH_BUSY			(0x048800E0 & ~0x04000000)
+#define MASK_DISABLE_INTS		(0xFFFFFCFC)
+#define MASK_FLASH_UNLOCKED		(0xF588FFEF & ~0x04000000)
+#define MASK_FLASH_LOCK			(0xF588FFEF & ~0x04000000)
+#define MASK_FLASH_ERASE		(0xF588FFEF & ~0x04000000)
+#define MASK_FLASH_ERASED		(0xF48800EB & ~0x04000000)
+#define MASK_ACCESS_VIOLATIONS	(0xFFFFFCFC)
+#define MASK_FLASH_WRITE		(0xF588FFEF & ~0x04000000)
+#define MASK_WRITE_ALIGNED		(0xF588FFEF & ~0x04000000)
+#define MASK_WRITE_COMPLETE		(0xF488FFEE & ~0x04000000)
+#define MASK_WRITE_BURST		(0xF588FFEF & ~0x04000000)
+#define MASK_BURST_COMPLETE		(0xF488FFEE & ~0x04000000)
+#define MASK_WRITE_REMAINING	(0xF588FFEF & ~0x04000000)
+#define MASK_REMAINING_COMPLETE	(0xF488FFEE & ~0x04000000)
+#define MASK_MASS_ERASE			(0xF588FFEF & ~0x04000000)
+#define MASK_ERASE_COMPLETE		(0xF48800ED & ~0x04000000)
 
 
-#define ARM_PID_DEFAULT_CM3        0xB4C3
-#define ARM_PID_DEFAULT_CM4        0xB4C4
-#define MAX326XX_ID                0x4D
+#define ARM_PID_DEFAULT_CM3		0xB4C3
+#define ARM_PID_DEFAULT_CM4		0xB4C4
+#define MAX326XX_ID				0x4D
 
 static int max32xxx_mass_erase(struct flash_bank *bank);
 
@@ -105,7 +105,7 @@ static const uint8_t write_code[] = {
 #include "../../contrib/loaders/flash/max32xxx/max32xxx.inc"
 };
 
-/*		Config Command: flash bank name driver base size chip_width bus_width target [driver_option]
+/*	Config Command: flash bank name driver base size chip_width bus_width target [driver_option]
 	flash bank max32xxx <base> <size> 0 0 <target> <FLC base> <sector size> <clkdiv> [burst_bits]
  */
 FLASH_BANK_COMMAND_HANDLER(max32xxx_flash_bank_command)
@@ -123,10 +123,19 @@ FLASH_BANK_COMMAND_HANDLER(max32xxx_flash_bank_command)
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[7], info->sector_size);
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[8], info->clkdiv_value);
 
+	LOG_WARNING("CMD_ARGC = %d", CMD_ARGC);
+
 	if (CMD_ARGC > 9)
 		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[9], info->burst_size_bits);
-	else
+	else {
+		/* Default burst size of 32 bits */
 		info->burst_size_bits = 32;
+	}
+
+	if ((info->burst_size_bits != 128) && (info->burst_size_bits != 32)) {
+		LOG_WARNING("Invalid burst size %d, must be 32 or 128", info->burst_size_bits);
+		return ERROR_FLASH_BANK_INVALID;
+	}
 
 	info->int_state = 0;
 	bank->driver_priv = info;
@@ -149,16 +158,11 @@ static int get_info(struct flash_bank *bank, char *buf, int buf_size)
 
 static int max32xxx_flash_busy(uint32_t flash_cn)
 {
-	if(flash_cn & (FLC_CN_PGE | FLC_CN_ME | FLC_CN_WR)) {
+	if (flash_cn & (FLC_CN_PGE | FLC_CN_ME | FLC_CN_WR))
 		return ERROR_FLASH_BUSY;
-	}
 
 	return ERROR_OK;
 }
-
-/***************************************************************************
-*	flash operations
-***************************************************************************/
 
 static int max32xxx_flash_op_pre(struct flash_bank *bank)
 {
@@ -169,9 +173,8 @@ static int max32xxx_flash_op_pre(struct flash_bank *bank)
 
 	/* Check if the flash controller is busy */
 	target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
-	if (max32xxx_flash_busy(flash_cn)){
+	if (max32xxx_flash_busy(flash_cn))
 		return ERROR_FLASH_BUSY;
-	}
 
 	/* Refresh flash controller timing */
 	target_write_u32(target, info->flc_base + FLC_CLKDIV, info->clkdiv_value);
@@ -449,40 +452,17 @@ static int max32xxx_write_block(struct flash_bank *bank, const uint8_t *buffer,
 	init_reg_param(&reg_params[4], "r4", 32, PARAM_OUT);
 	init_reg_param(&reg_params[5], "r5", 32, PARAM_OUT);
 
-
-#if 0
-
-	// TODO: Not working w/ 128-bit writes
-	// Algorithm times out
-
-
-	buf_set_u32(reg_params[0].value, 0, 32, source->address);
-	buf_set_u32(reg_params[1].value, 0, 32, source->address + source->size);
-	buf_set_u32(reg_params[2].value, 0, 32, address);
-	buf_set_u32(reg_params[3].value, 0, 32, wcount/4);
-	buf_set_u32(reg_params[4].value, 0, 32, info->flc_base);
-
-
-	buf_set_u32(reg_params[5].value, 0, 32, 1);
-
-	LOG_INFO("r0 = 0x%x, r1 = 0x%x, r2 = 0x%x, r3 = 0x%x, r4 = 0x%x, r5 = 0x%x",
-			(unsigned)source->address, (unsigned)source->address + source->size, address,
-			wcount/4, info->flc_base, 1);
-
-#else
 	buf_set_u32(reg_params[0].value, 0, 32, source->address);
 	buf_set_u32(reg_params[1].value, 0, 32, source->address + source->size);
 	buf_set_u32(reg_params[2].value, 0, 32, address);
 	buf_set_u32(reg_params[3].value, 0, 32, wcount);
 	buf_set_u32(reg_params[4].value, 0, 32, info->flc_base);
 
-	// TODO: Not working w/ 128-bit writes
-	buf_set_u32(reg_params[5].value, 0, 32, 0);
+	if (info->burst_size_bits == 32)
+		buf_set_u32(reg_params[5].value, 0, 32, 0);
+	else
+		buf_set_u32(reg_params[5].value, 0, 32, 1);
 
-	LOG_INFO("r0 = 0x%x, r1 = 0x%x, r2 = 0x%x, r3 = 0x%x, r4 = 0x%x, r5 = 0x%x",
-			(unsigned)source->address, (unsigned)source->address + source->size, address,
-			wcount, info->flc_base, 0);
-#endif
 	retval = target_run_flash_async_algorithm(target, buffer, wcount, 4, 0, NULL,
 		6, reg_params, source->address, source->size, write_algorithm->address, 0, &armv7m_info);
 
@@ -523,9 +503,16 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 	if (info->probed == 0)
 		return ERROR_FLASH_BANK_NOT_PROBED;
 
-	if (offset & 0x3) {
-		LOG_WARNING("offset size must be word aligned");
-		return ERROR_FLASH_DST_BREAKS_ALIGNMENT;
+	if (info->burst_size_bits == 32) {
+		if (offset & 0x3) {
+			LOG_WARNING("offset size must be 32-bit aligned");
+			return ERROR_FLASH_DST_BREAKS_ALIGNMENT;
+		}
+	} else {
+		if (offset & 0xF) {
+			LOG_WARNING("offset size must be 128-bit aligned");
+			return ERROR_FLASH_DST_BREAKS_ALIGNMENT;
+		}
 	}
 
 	if (offset + count > bank->size)
@@ -538,16 +525,13 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 		return retval;
 
 	if (remaining >= 4) {
-		/* write in 32-bit units */
-		target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
-		flash_cn &= 0xF7FFFFFF;
-		flash_cn |= 0x00000010;
-		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
-
 		/* try using a block write */
-		words_remaining = remaining / 4;
-		retval = max32xxx_write_block(bank, buffer, offset, words_remaining);
 
+		/* 128-bit align the words_remaining */
+		words_remaining = remaining / 4;
+		words_remaining -= words_remaining % 4;
+
+		retval = max32xxx_write_block(bank, buffer, offset, words_remaining);
 		if (retval != ERROR_OK) {
 			if (retval == ERROR_TARGET_RESOURCE_NOT_AVAILABLE)
 				LOG_DEBUG("writing flash word-at-a-time");
@@ -556,21 +540,21 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 				return ERROR_FLASH_OPERATION_FAILED;
 			}
 		} else {
-			/* all 32-bit words have been written */
+			/* all words_remaining have been written */
 			buffer += words_remaining * 4;
 			address += words_remaining * 4;
 			remaining -= words_remaining * 4;
 		}
 	}
 
-	if ((remaining >= 4) && ((address & 0x1F) != 0)) {
-		/* write in 32-bit units until we are 128-bit aligned */
+	if ((info->burst_size_bits == 32) && (remaining >= 4)) {
+		/* write in 32-bit units*/
 		target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
 		flash_cn &= 0xF7FFFFFF;
 		flash_cn |= 0x00000010;
 		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
-		while ((remaining >= 4) && ((address & 0x1F) != 0)) {
+		while (remaining >= 4) {
 			target_write_u32(target, info->flc_base + FLC_ADDR, address);
 			target_write_buffer(target, info->flc_base + FLC_DATA0, 4, buffer);
 			flash_cn |= 0x00000001;
@@ -594,7 +578,7 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 	}
 
 	if ((info->burst_size_bits == 128) && (remaining >= 16)) {
-		/* write in 128-bit bursts while we can */
+		/* write in 128-bit units */
 		target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
 
 		flash_cn &= 0xFFFFFFEF;
@@ -627,38 +611,7 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 		}
 	}
 
-	if (remaining >= 4) {
-
-		/* write in 32-bit units while we can */
-		target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
-		flash_cn &= 0xF7FFFFFF;
-		flash_cn |= 0x00000010;
-		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
-
-		while (remaining >= 4) {
-			target_write_u32(target, info->flc_base + FLC_ADDR, address);
-			target_write_buffer(target, info->flc_base + FLC_DATA0, 4, buffer);
-			flash_cn |= 0x00000001;
-			target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
-			/* Wait until flash operation is complete */
-			retry = 10;
-
-			do {
-				target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
-			} while ((--retry > 0) && max32xxx_flash_busy(flash_cn));
-
-			if (retry <= 0) {
-				LOG_ERROR("Timed out waiting for flash write @ 0x%08x", address);
-				return ERROR_FLASH_OPERATION_FAILED;
-			}
-
-			buffer += 4;
-			address += 4;
-			remaining -= 4;
-		}
-	}
-
-	if (remaining > 0) {
+	if ((info->burst_size_bits == 32) && remaining > 0) {
 		/* write remaining bytes in a 32-bit unit */
 		target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
 		flash_cn &= 0xF7FFFFFF;
@@ -678,12 +631,60 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 		target_write_buffer(target, info->flc_base + FLC_DATA0, 4, last_word);
 		flash_cn |= 0x00000001;
 		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
+
 		/* Wait until flash operation is complete */
 		retry = 10;
 
 		do {
 			target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
 		} while ((--retry > 0) && max32xxx_flash_busy(flash_cn));
+
+		if (retry <= 0) {
+			LOG_ERROR("Timed out waiting for flash write @ 0x%08x", address);
+			return ERROR_FLASH_OPERATION_FAILED;
+		}
+	}
+
+	if ((info->burst_size_bits == 128) && remaining > 0) {
+		/* write remaining bytes in a 128-bit unit */
+		if (target_read_u32(target, info->flc_base + FLC_CN, &flash_cn) != ERROR_OK) {
+			max32xxx_flash_op_post(bank);
+			return ERROR_FAIL;
+		}
+
+		flash_cn &= 0xF7FFFFFF;
+		flash_cn &= ~0x00000010;
+		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
+
+		uint8_t last_words[16] = {0xff, 0xff, 0xff, 0xff,
+			0xff, 0xff, 0xff, 0xff,
+			0xff, 0xff, 0xff, 0xff,
+			0xff, 0xff, 0xff, 0xff};
+
+		int i = 0;
+
+		while (remaining > 0) {
+			last_words[i++] = *buffer;
+			buffer++;
+			remaining--;
+		}
+
+		target_write_u32(target, info->flc_base + FLC_ADDR, address);
+		target_write_buffer(target, info->flc_base + FLC_DATA0, 4, last_words);
+		target_write_buffer(target, info->flc_base + FLC_DATA0+4, 4, last_words+4);
+		target_write_buffer(target, info->flc_base + FLC_DATA0+8, 4, last_words+8);
+		target_write_buffer(target, info->flc_base + FLC_DATA0+12, 4, last_words+12);
+		flash_cn |= 0x00000001;
+		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
+
+		/* Wait until flash operation is complete */
+		retry = 10;
+		do {
+			if (target_read_u32(target, info->flc_base + FLC_CN, &flash_cn) != ERROR_OK) {
+				max32xxx_flash_op_post(bank);
+				return ERROR_FAIL;
+			}
+		} while ((--retry > 0) && (flash_cn & FLC_CN_PEND));
 
 		if (retry <= 0) {
 			LOG_ERROR("Timed out waiting for flash write @ 0x%08x", address);
@@ -990,10 +991,10 @@ COMMAND_HANDLER(max32xxx_handle_protection_check_command)
 	LOG_WARNING("s:<sector number> a:<address> p:<protection bit>");
 	for (i = 0; i < bank->num_sectors; i += 4) {
 		LOG_WARNING("s:%03d a:0x%06x p:%d | s:%03d a:0x%06x p:%d | s:%03d a:0x%06x p:%d | s:%03d a:0x%06x p:%d",
-		(i+0), (i+0)*info->sector_size, bank->sectors[(i+0)].is_protected,
-		(i+1), (i+1)*info->sector_size, bank->sectors[(i+1)].is_protected,
-		(i+2), (i+2)*info->sector_size, bank->sectors[(i+2)].is_protected,
-		(i+3), (i+3)*info->sector_size, bank->sectors[(i+3)].is_protected);
+			(i+0), (i+0)*info->sector_size, bank->sectors[(i+0)].is_protected,
+			(i+1), (i+1)*info->sector_size, bank->sectors[(i+1)].is_protected,
+			(i+2), (i+2)*info->sector_size, bank->sectors[(i+2)].is_protected,
+			(i+3), (i+3)*info->sector_size, bank->sectors[(i+3)].is_protected);
 	}
 
 	return ERROR_OK;
