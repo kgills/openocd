@@ -123,8 +123,6 @@ FLASH_BANK_COMMAND_HANDLER(max32xxx_flash_bank_command)
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[7], info->sector_size);
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[8], info->clkdiv_value);
 
-	LOG_WARNING("CMD_ARGC = %d", CMD_ARGC);
-
 	if (CMD_ARGC > 9)
 		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[9], info->burst_size_bits);
 	else {
