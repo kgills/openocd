@@ -53,10 +53,10 @@ write:
     str     r6, [r4, #0x08] /* FLSH_CN */
 
 wait_fifo:
-    ldr 	r8, [r0, #0]	/* read wp */
-    cmp 	r8, #0			/* abort if wp == 0 */
+    ldr 	r8, [r0, #0x00]	/* read wp */
+    cmp 	r8, #0x00		/* abort if wp == 0 */
     beq 	exit
-    ldr 	r7, [r0, #4]	/* read rp */
+    ldr 	r7, [r0, #0x04]	/* read rp */
     cmp 	r7, r8			/* wait until rp != wp */
     beq 	wait_fifo
 
@@ -88,19 +88,19 @@ inc32:
 
 write32:
     ldr		r6, [r4, #0x08]	/* FLSH_CN */
-    orr		r6, r6, #1      /* WE */
+    orr		r6, r6, #0x01   /* WE */
     str		r6, [r4, #0x08]	/* FLSH_CN - enable write */
 
 busy:
     ldr		r8, [r4, #0x08]	/* FLSH_CN */
-    tst		r8, #1
+    tst		r8, #0x07
     bne		busy
 
     cmp 	r7, r1			/* wrap rp at end of buffer */
     it  	cs
-    addcs	r7, r0, #8		/* skip loader args */
-    str 	r7, [r0, #4]	/* store rp */
-    subs	r3, r3, #1		/* decrement write count */
+    addcs	r7, r0, #0x08	/* skip loader args */
+    str 	r7, [r0, #0x04]	/* store rp */
+    subs	r3, r3, #0x01	/* decrement write count */
     cbz 	r3, exit		/* loop if not done */
     b		wait_fifo
 
