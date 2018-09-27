@@ -582,9 +582,10 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 		flash_cn &= 0xFFFFFFEF;
 		flash_cn |= 0x08000000;
 		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
-		target_write_u32(target, info->flc_base + FLC_ADDR, address);
 
 		while (remaining >= 16) {
+			target_write_u32(target, info->flc_base + FLC_ADDR, address);
+			
 			if ((address & 0xFFF) == 0)
 				LOG_DEBUG("Writing @ 0x%08x", address);
 
