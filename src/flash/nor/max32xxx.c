@@ -55,6 +55,7 @@
 #define FLC_CN_ERASE_CODE_MASK	0x0000FF00
 #define FLC_CN_ERASE_CODE_PGE	0x00005500
 #define FLC_CN_ERASE_CODE_ME	0x0000AA00
+#define FLC_CN_32BIT			0x00000010
 #define FLC_CN_PGE				0x00000004
 #define FLC_CN_ME				0x00000002
 #define FLC_CN_WR				0x00000001
@@ -115,7 +116,7 @@ FLASH_BANK_COMMAND_HANDLER(max32xxx_flash_bank_command)
 	struct max32xxx_flash_bank *info;
 
 	if (CMD_ARGC < 9) {
-		LOG_WARNING("incomplete flash bank max32xxx configuration: <base> <size> 0 0 <target> <FLC base> <sector size> <clkdiv> [burst_bits]");
+		LOG_ERROR("incomplete flash bank max32xxx configuration: <base> <size> 0 0 <target> <FLC base> <sector size> <clkdiv> [burst_bits]");
 		return ERROR_FLASH_BANK_INVALID;
 	}
 
@@ -133,7 +134,7 @@ FLASH_BANK_COMMAND_HANDLER(max32xxx_flash_bank_command)
 	}
 
 	if ((info->burst_size_bits != 128) && (info->burst_size_bits != 32)) {
-		LOG_WARNING("Invalid burst size %d, must be 32 or 128", info->burst_size_bits);
+		LOG_ERROR("Invalid burst size %d, must be 32 or 128", info->burst_size_bits);
 		return ERROR_FLASH_BANK_INVALID;
 	}
 
@@ -209,7 +210,7 @@ static int max32xxx_flash_op_pre(struct flash_bank *bank)
 	}
 
 	/* Unlock flash */
-	flash_cn &= ~FLC_CN_UNLOCK_MASK;
+	flash_cn &= ~(FLC_CN_UNLOCK_MASK);
 	flash_cn |= FLC_CN_UNLOCK_VALUE;
 	target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
@@ -232,7 +233,7 @@ static int max32xxx_flash_op_post(struct flash_bank *bank)
 
 	/* Lock flash */
 	target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
-	flash_cn &= ~FLC_CN_UNLOCK_MASK;
+	flash_cn &= ~(FLC_CN_UNLOCK_MASK);
 	target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 	return ERROR_OK;
 }
@@ -315,7 +316,7 @@ static int max32xxx_erase(struct flash_bank *bank, int first, int last)
 		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 		/* Issue page erase command */
-		flash_cn |= 0x4;
+		flash_cn |= FLC_CN_PGE;
 		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 		/* Wait until erase complete */
@@ -552,14 +553,13 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 	if ((info->burst_size_bits == 32) && (remaining >= 4)) {
 		/* write in 32-bit units*/
 		target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
-		flash_cn &= 0xF7FFFFFF;
-		flash_cn |= 0x00000010;
+		flash_cn |= FLC_CN_32BIT;
 		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 		while (remaining >= 4) {
 			target_write_u32(target, info->flc_base + FLC_ADDR, address);
 			target_write_buffer(target, info->flc_base + FLC_DATA0, 4, buffer);
-			flash_cn |= 0x00000001;
+			flash_cn |= FLC_CN_WR;
 			target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 			/* Wait until flash operation is complete */
 			retry = 10;
@@ -582,9 +582,7 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 	if ((info->burst_size_bits == 128) && (remaining >= 16)) {
 		/* write in 128-bit units */
 		target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
-
-		flash_cn &= 0xFFFFFFEF;
-		flash_cn |= 0x08000000;
+		flash_cn &= ~(FLC_CN_32BIT);
 		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 		while (remaining >= 16) {
@@ -594,7 +592,7 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 				LOG_DEBUG("Writing @ 0x%08x", address);
 
 			target_write_buffer(target, info->flc_base + FLC_DATA0, 16, buffer);
-			flash_cn |= 0x00000001;
+			flash_cn |= FLC_CN_WR;
 			target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 			/* Wait until flash operation is complete */
 			retry = 10;
@@ -617,11 +615,10 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 	if ((info->burst_size_bits == 32) && remaining > 0) {
 		/* write remaining bytes in a 32-bit unit */
 		target_read_u32(target, info->flc_base + FLC_CN, &flash_cn);
-		flash_cn &= 0xF7FFFFFF;
-		flash_cn |= 0x00000010;
+		flash_cn |= FLC_CN_32BIT;
 		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
-		uint8_t last_word[4] = {0xff, 0xff, 0xff, 0xff};
+		uint8_t last_word[4] = {0xFF, 0xFF, 0xFF, 0xFF};
 		int i = 0;
 
 		while (remaining > 0) {
@@ -632,7 +629,7 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 
 		target_write_u32(target, info->flc_base + FLC_ADDR, address);
 		target_write_buffer(target, info->flc_base + FLC_DATA0, 4, last_word);
-		flash_cn |= 0x00000001;
+		flash_cn |= FLC_CN_WR;
 		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 		/* Wait until flash operation is complete */
@@ -655,14 +652,13 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 			return ERROR_FAIL;
 		}
 
-		flash_cn &= 0xF7FFFFFF;
-		flash_cn &= ~0x00000010;
+		flash_cn &= ~(FLC_CN_32BIT);
 		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
-		uint8_t last_words[16] = {0xff, 0xff, 0xff, 0xff,
-			0xff, 0xff, 0xff, 0xff,
-			0xff, 0xff, 0xff, 0xff,
-			0xff, 0xff, 0xff, 0xff};
+		uint8_t last_words[16] = {0xFF, 0xFF, 0xFF, 0xFF,
+			0xFF, 0xFF, 0xFF, 0xFF,
+			0xFF, 0xFF, 0xFF, 0xFF,
+			0xFF, 0xFF, 0xFF, 0xFF};
 
 		int i = 0;
 
@@ -674,10 +670,10 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 
 		target_write_u32(target, info->flc_base + FLC_ADDR, address);
 		target_write_buffer(target, info->flc_base + FLC_DATA0, 4, last_words);
-		target_write_buffer(target, info->flc_base + FLC_DATA0+4, 4, last_words+4);
-		target_write_buffer(target, info->flc_base + FLC_DATA0+8, 4, last_words+8);
-		target_write_buffer(target, info->flc_base + FLC_DATA0+12, 4, last_words+12);
-		flash_cn |= 0x00000001;
+		target_write_buffer(target, info->flc_base + FLC_DATA0 + 4, 4, last_words + 4);
+		target_write_buffer(target, info->flc_base + FLC_DATA0 + 8, 4, last_words + 8);
+		target_write_buffer(target, info->flc_base + FLC_DATA0 + 12, 4, last_words + 12);
+		flash_cn |= FLC_CN_WR;
 		target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 		/* Wait until flash operation is complete */
@@ -752,7 +748,7 @@ static int max32xxx_probe(struct flash_bank *bank)
 
 	/* Initialize the protection bits for each flash page */
 	if (max32xxx_protect_check(bank) == ERROR_FLASH_OPER_UNSUPPORTED)
-		LOG_WARNING("Flash protection not supported on this device");
+		LOG_INFO("Flash protection not supported on this device");
 
 	info->probed = 1;
 	return ERROR_OK;
@@ -801,7 +797,7 @@ static int max32xxx_mass_erase(struct flash_bank *bank)
 	target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 	/* Issue mass erase command */
-	flash_cn |= 0x2;
+	flash_cn |= FLC_CN_ME;
 	target_write_u32(target, info->flc_base + FLC_CN, flash_cn);
 
 	/* Wait until erase complete */
