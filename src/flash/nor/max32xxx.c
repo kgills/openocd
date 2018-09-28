@@ -82,10 +82,12 @@
 #define MASK_MASS_ERASE			(0xF588FFEF & ~0x04000000)
 #define MASK_ERASE_COMPLETE		(0xF48800ED & ~0x04000000)
 
-
 #define ARM_PID_DEFAULT_CM3		0xB4C3
 #define ARM_PID_DEFAULT_CM4		0xB4C4
 #define MAX326XX_ID				0x4D
+
+#define WRITE32BIT				0
+#define WRITE128BIT				1
 
 static int max32xxx_mass_erase(struct flash_bank *bank);
 
@@ -268,7 +270,7 @@ static int max32xxx_protect_check(struct flash_bank *bank)
 static int max32xxx_erase(struct flash_bank *bank, int first, int last)
 {
 	int banknr;
-	uint32_t flash_cn, flsh_int;
+	uint32_t flash_cn, flash_int;
 	struct max32xxx_flash_bank *info = bank->driver_priv;
 	struct target *target = bank->target;
 	int retval;
@@ -329,8 +331,8 @@ static int max32xxx_erase(struct flash_bank *bank, int first, int last)
 		}
 
 		/* Check access violations */
-		target_read_u32(target, info->flc_base + FLC_INT, &flsh_int);
-		if (flsh_int & FLC_INT_AF) {
+		target_read_u32(target, info->flc_base + FLC_INT, &flash_int);
+		if (flash_int & FLC_INT_AF) {
 			LOG_ERROR("Error erasing flash page %i", banknr);
 			target_write_u32(target, info->flc_base + FLC_INT, 0);
 			max32xxx_flash_op_post(bank);
@@ -453,13 +455,15 @@ static int max32xxx_write_block(struct flash_bank *bank, const uint8_t *buffer,
 	buf_set_u32(reg_params[0].value, 0, 32, source->address);
 	buf_set_u32(reg_params[1].value, 0, 32, source->address + source->size);
 	buf_set_u32(reg_params[2].value, 0, 32, address);
-	buf_set_u32(reg_params[3].value, 0, 32, wcount);
 	buf_set_u32(reg_params[4].value, 0, 32, info->flc_base);
 
-	if (info->burst_size_bits == 32)
-		buf_set_u32(reg_params[5].value, 0, 32, 0);
-	else
-		buf_set_u32(reg_params[5].value, 0, 32, 1);
+	if (info->burst_size_bits == 32) {
+		buf_set_u32(reg_params[3].value, 0, 32, wcount);
+		buf_set_u32(reg_params[5].value, 0, 32, WRITE32BIT);
+	} else {
+		buf_set_u32(reg_params[3].value, 0, 32, wcount/4);
+		buf_set_u32(reg_params[5].value, 0, 32, WRITE128BIT);
+	}
 
 	retval = target_run_flash_async_algorithm(target, buffer, wcount, 4, 0, NULL,
 		6, reg_params, source->address, source->size, write_algorithm->address, 0, &armv7m_info);
@@ -483,7 +487,7 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 {
 	struct max32xxx_flash_bank *info = bank->driver_priv;
 	struct target *target = bank->target;
-	uint32_t flash_cn, flsh_int;
+	uint32_t flash_cn, flash_int;
 	uint32_t address = offset;
 	uint32_t remaining = count;
 	uint32_t words_remaining;
@@ -692,8 +696,8 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 	}
 
 	/* Check access violations */
-	target_read_u32(target, info->flc_base + FLC_INT, &flsh_int);
-	if (flsh_int & FLC_INT_AF) {
+	target_read_u32(target, info->flc_base + FLC_INT, &flash_int);
+	if (flash_int & FLC_INT_AF) {
 		LOG_ERROR("Flash Error writing 0x%x bytes at 0x%08x", count, offset);
 		max32xxx_flash_op_post(bank);
 		return ERROR_FLASH_OPERATION_FAILED;
@@ -758,7 +762,7 @@ static int max32xxx_mass_erase(struct flash_bank *bank)
 {
 	struct target *target = NULL;
 	struct max32xxx_flash_bank *info = NULL;
-	uint32_t flash_cn, flsh_int;
+	uint32_t flash_cn, flash_int;
 	int retval;
 	int retry;
 	info = bank->driver_priv;
@@ -812,8 +816,8 @@ static int max32xxx_mass_erase(struct flash_bank *bank)
 	}
 
 	/* Check access violations */
-	target_read_u32(target, info->flc_base + FLC_INT, &flsh_int);
-	if (flsh_int & FLC_INT_AF) {
+	target_read_u32(target, info->flc_base + FLC_INT, &flash_int);
+	if (flash_int & FLC_INT_AF) {
 		LOG_ERROR("Error mass erasing");
 		target_write_u32(target, info->flc_base + FLC_INT, 0);
 		return ERROR_FLASH_OPERATION_FAILED;
