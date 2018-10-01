@@ -25,22 +25,22 @@
 #include <target/armv7m.h>
 
 /* Register addresses */
-#define FLC_ADDR				0x000
-#define FLC_CLKDIV				0x004
-#define FLC_CN					0x008
-#define FLC_PR1E_ADDR			0x00C
-#define FLC_PR2S_ADDR			0x010
-#define FLC_PR2E_ADDR			0x014
-#define FLC_PR3S_ADDR			0x018
-#define FLC_PR3E_ADDR			0x01C
-#define FLC_MD					0x020
-#define FLC_INT					0x024
-#define FLC_DATA0				0x030
-#define FLC_DATA1				0x034
-#define FLC_DATA2				0x038
-#define FLC_DATA3				0x03C
-#define FLC_BL_CTRL				0x170
-#define FLC_PROT				0x300
+#define FLC_ADDR				0x00000000
+#define FLC_CLKDIV				0x00000004
+#define FLC_CN					0x00000008
+#define FLC_PR1E_ADDR			0x0000000C
+#define FLC_PR2S_ADDR			0x00000010
+#define FLC_PR2E_ADDR			0x00000014
+#define FLC_PR3S_ADDR			0x00000018
+#define FLC_PR3E_ADDR			0x0000001C
+#define FLC_MD					0x00000020
+#define FLC_INT					0x00000024
+#define FLC_DATA0				0x00000030
+#define FLC_DATA1				0x00000034
+#define FLC_DATA2				0x00000038
+#define FLC_DATA3				0x0000003C
+#define FLC_BL_CTRL				0x00000170
+#define FLC_PROT				0x00000300
 
 #define ARM_PID_REG				0xE00FFFE0
 #define MAX326XX_ID_REG			0x40000838
@@ -83,9 +83,9 @@
 #define MASK_MASS_ERASE			(0xF588FFEF & ~0x04000000)
 #define MASK_ERASE_COMPLETE		(0xF48800ED & ~0x04000000)
 
-#define ARM_PID_DEFAULT_CM3		0xB4C3
-#define ARM_PID_DEFAULT_CM4		0xB4C4
-#define MAX326XX_ID				0x4D
+#define ARM_PID_DEFAULT_CM3		0x0000B4C3
+#define ARM_PID_DEFAULT_CM4		0x0000B4C4
+#define MAX326XX_ID				0x0000004D
 
 #define WRITE32BIT				0
 #define WRITE128BIT				1
@@ -116,7 +116,10 @@ FLASH_BANK_COMMAND_HANDLER(max32xxx_flash_bank_command)
 	struct max32xxx_flash_bank *info;
 
 	if (CMD_ARGC < 9) {
-		LOG_ERROR("incomplete flash bank max32xxx configuration: <base> <size> 0 0 <target> <FLC base> <sector size> <clkdiv> [burst_bits]");
+		LOG_ERROR("incorrect flash bank max32xxx configuration: <base> <size> 0 0 <target> <FLC base> <sector size> <clkdiv> [burst_bits]");
+		return ERROR_FLASH_BANK_INVALID;
+	} else if (CMD_ARGC > 10) {
+		LOG_ERROR("incorrect flash bank max32xxx configuration: <base> <size> 0 0 <target> <FLC base> <sector size> <clkdiv> [burst_bits]");
 		return ERROR_FLASH_BANK_INVALID;
 	}
 
@@ -126,7 +129,7 @@ FLASH_BANK_COMMAND_HANDLER(max32xxx_flash_bank_command)
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[7], info->sector_size);
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[8], info->clkdiv_value);
 
-	if (CMD_ARGC > 9)
+	if (CMD_ARGC == 10)
 		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[9], info->burst_size_bits);
 	else {
 		/* Default burst size of 32 bits */
@@ -182,7 +185,7 @@ static int max32xxx_flash_op_pre(struct flash_bank *bank)
 
 	/* Clear and disable flash programming interrupts */
 	target_read_u32(target, info->flc_base + FLC_INT, &info->int_state);
-	target_write_u32(target, info->flc_base + FLC_INT, 0x00000000);
+	target_write_u32(target, info->flc_base + FLC_INT, 0);
 
 	/* Clear the lower bit in the bootloader configuration register in case flash page 0 has been replaced */
 	if (target_read_u32(target, info->flc_base + FLC_BL_CTRL, &bootloader) != ERROR_OK) {
@@ -203,7 +206,6 @@ static int max32xxx_flash_op_pre(struct flash_bank *bank)
 				return ERROR_FAIL;
 			}
 			if (bootloader & FLC_BL_CTRL_IFREN) {
-				/* Bummer */
 				LOG_ERROR("Unable to swap flash page 0 back in. Writes to page 0 will fail.");
 			}
 		}
@@ -508,12 +510,12 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 
 	if (info->burst_size_bits == 32) {
 		if (offset & 0x3) {
-			LOG_WARNING("offset size must be 32-bit aligned");
+			LOG_ERROR("offset size must be 32-bit aligned");
 			return ERROR_FLASH_DST_BREAKS_ALIGNMENT;
 		}
 	} else {
 		if (offset & 0xF) {
-			LOG_WARNING("offset size must be 128-bit aligned");
+			LOG_ERROR("offset size must be 128-bit aligned");
 			return ERROR_FLASH_DST_BREAKS_ALIGNMENT;
 		}
 	}
@@ -748,7 +750,7 @@ static int max32xxx_probe(struct flash_bank *bank)
 
 	/* Initialize the protection bits for each flash page */
 	if (max32xxx_protect_check(bank) == ERROR_FLASH_OPER_UNSUPPORTED)
-		LOG_INFO("Flash protection not supported on this device");
+		LOG_DEBUG("Flash protection not supported on this device");
 
 	info->probed = 1;
 	return ERROR_OK;
