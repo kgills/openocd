@@ -510,7 +510,7 @@ static int max32xxx_write(struct flash_bank *bank, const uint8_t *buffer,
 
 	if (info->burst_size_bits == 32) {
 		if (offset & 0x3) {
-			LOG_ERROR("offset size must be 32-bit aligned");
+			LOG_WARNING("offset size must be 32-bit aligned");
 			return ERROR_FLASH_DST_BREAKS_ALIGNMENT;
 		}
 	} else {
